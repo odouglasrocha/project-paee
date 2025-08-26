@@ -1,0 +1,34 @@
+export const conjuntos: Record<string, string[]> = {
+  "EA01 EA02 EA03": ["EA01", "EA02", "EA03"],
+  "EA04 EA05 EA06": ["EA04", "EA05", "EA06"],
+  "EA07 EA08 EA09": ["EA07", "EA08", "EA09"],
+  "EA10 EA11 EA12": ["EA10", "EA11", "EA12"],
+  "EA13 EA14": ["EA13", "EA14"],
+  "EA15 EA16 EA17": ["EA15", "EA16", "EA17"],
+  "EA18 EA19 EA20": ["EA18", "EA19", "EA20"],
+  "EA34 EA35 EA36": ["EA34", "EA35", "EA36"],
+  "EA37 EA38 EA39": ["EA37", "EA38", "EA39"],
+  "EA40 EA41 EA42": ["EA40", "EA41", "EA42"],
+  "EA44 EA45 EA46": ["EA44", "EA45", "EA46"],
+  "EA47 EA48 EA49": ["EA47", "EA48", "EA49"],
+  "EA50 EA51 EA52": ["EA50", "EA51", "EA52"],
+  "EA53 EA54 EA55": ["EA53", "EA54", "EA55"],
+  "EA56 EA57 EA58": ["EA56", "EA57", "EA58"],
+};
+
+export const slugifyConjunto = (key: string) => key.toLowerCase().replace(/\s+/g, "-");
+export const findConjuntoBySlug = (slug: string) => {
+  const entry = Object.entries(conjuntos).find(([k]) => slugifyConjunto(k) === slug);
+  return entry ? { name: entry[0], machines: entry[1] } : null;
+};
+
+export const splitByCategoria = () => {
+  const fofura: string[] = [];
+  const torcida: string[] = [];
+  Object.keys(conjuntos).forEach((k) => {
+    // Heurística simples: EA01..EA20 = Fofura; EA34..EA58 = Torcida
+    if (/(EA0\d|EA1\d)/.test(k)) fofura.push(k);
+    else torcida.push(k);
+  });
+  return { fofura, torcida };
+};
