@@ -1165,15 +1165,17 @@ const ControleQualidade = () => {
                            >
                              {shouldShowExpiryDate ? (
                                <div className="flex flex-col items-center justify-center h-full px-1">
-                                 {/* Layout vertical sem rotação para melhor legibilidade */}
-                                 <div className="flex flex-col items-center justify-center text-center">
-                                   <div className="text-[9px] font-bold text-[#004B87] leading-none mb-1">
-                                     {imageAtThisPosition.ocrData.expiryDate}
-                                   </div>
-                                   {imageAtThisPosition.ocrData.lsCode && (
-                                     <div className="text-[8px] font-semibold text-[#E32934] leading-none">
-                                       {imageAtThisPosition.ocrData.lsCode}
-                                     </div>
+                                 <div className={`${dateTextSize} font-bold text-[#004B87] leading-tight transform -rotate-90 whitespace-nowrap`}>
+                                   {/* Usa formattedData se disponível, senão usa expiryDate + lsCode separadamente */}
+                                   {imageAtThisPosition.ocrData.formattedData ? (
+                                     imageAtThisPosition.ocrData.formattedData
+                                   ) : (
+                                     <>
+                                       {imageAtThisPosition.ocrData.expiryDate}
+                                       {imageAtThisPosition.ocrData.lsCode && (
+                                         <span className="block mt-1 text-[8px]">{imageAtThisPosition.ocrData.lsCode}</span>
+                                       )}
+                                     </>
                                    )}
                                  </div>
                                </div>
