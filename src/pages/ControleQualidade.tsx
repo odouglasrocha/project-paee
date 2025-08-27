@@ -76,6 +76,8 @@ const ControleQualidade = () => {
       detectedText: string;
       expiryDate: string;
       lsCode: string;
+      timeCode?: string;
+      formattedData?: string; // DD/MM/AAAA LS000 00:00
       isValidDate: boolean;
       isValidWeek: boolean;
       validationStatus?: 'valid' | 'divergent' | 'expired' | 'invalid';
@@ -1164,9 +1166,16 @@ const ControleQualidade = () => {
                              {shouldShowExpiryDate ? (
                                <div className="flex flex-col items-center justify-center h-full px-1">
                                  <div className={`${dateTextSize} font-bold text-[#004B87] leading-tight transform -rotate-90 whitespace-nowrap`}>
-                                   {imageAtThisPosition.ocrData.expiryDate}
-                                   {imageAtThisPosition.ocrData.lsCode && (
-                                     <span className="block mt-1 text-[8px]">{imageAtThisPosition.ocrData.lsCode}</span>
+                                   {/* Usa formattedData se disponível, senão usa expiryDate + lsCode separadamente */}
+                                   {imageAtThisPosition.ocrData.formattedData ? (
+                                     imageAtThisPosition.ocrData.formattedData
+                                   ) : (
+                                     <>
+                                       {imageAtThisPosition.ocrData.expiryDate}
+                                       {imageAtThisPosition.ocrData.lsCode && (
+                                         <span className="block mt-1 text-[8px]">{imageAtThisPosition.ocrData.lsCode}</span>
+                                       )}
+                                     </>
                                    )}
                                  </div>
                                </div>
