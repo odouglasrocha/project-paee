@@ -141,18 +141,20 @@ const extractExpiryDate = (text: string): { raw: string; iso: string } | null =>
   console.log('📅 Texto original:', originalText);
   console.log('🔧 Texto corrigido:', correctedText);
   
-  // Padrões robustos para detectar datas DD/MM/AAAA
+  // Padrões mais flexíveis para detectar datas em OCR
   const datePatterns = [
-    // dd/mm/yyyy formato padrão
-    /\b([0-3]?[0-9])[\/.\-]([0-1]?[0-9])[\/.\-]([2][0-9]{3})\b/g,
-    // dd/mm/yy formato curto
-    /\b([0-3]?[0-9])[\/.\-]([0-1]?[0-9])[\/.\-]([2-9][0-9])\b/g,
-    // Padrões com espaços
-    /\b([0-3]?[0-9])\s*[\/.\-]\s*([0-1]?[0-9])\s*[\/.\-]\s*([2][0-9]{3})\b/g,
-    // Formato brasileiro com espaços
-    /\b([0-3][0-9])\s*\/\s*([0-1][0-9])\s*\/\s*([2][0-9]{3})\b/g,
-    // Padrões com prefixos (VAL, VALIDADE, etc.)
-    /(?:VAL|VALIDADE|VENC|VENCE|VENCT|EXP|DATA)?[^\d]{0,6}([0-3]?[0-9])[\/.\-]([0-1]?[0-9])[\/.\-]([2][0-9]{3})/gi
+    // Padrão mais permissivo para dd/mm/yyyy
+    /(\d{1,2})[\/.\-\s]+(\d{1,2})[\/.\-\s]+(\d{4})/g,
+    // Padrão para dd/mm/yy
+    /(\d{1,2})[\/.\-\s]+(\d{1,2})[\/.\-\s]+(\d{2})/g,
+    // Padrão com prefixos mais flexível
+    /(?:VAL|VALIDADE|VENC|VENCE|VENCT|EXP|DATA)?[^\d]{0,10}(\d{1,2})[\/.\-\s]+(\d{1,2})[\/.\-\s]+(\d{2,4})/gi,
+    // Padrão muito flexível para capturar qualquer sequência de números que pareça data
+    /\b(\d{1,2})\D+(\d{1,2})\D+(\d{2,4})\b/g,
+    // Padrão para datas com espaços extras
+    /(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*(\d{2,4})/g,
+    // Padrão para datas sem separadores (ddmmyyyy ou ddmmyy)
+    /\b(\d{2})(\d{2})(\d{2,4})\b/g
   ];
   
   for (const pattern of datePatterns) {
@@ -168,26 +170,59 @@ const extractExpiryDate = (text: string): { raw: string; iso: string } | null =>
           year = year < 50 ? 2000 + year : 1900 + year;
         }
         
-        // Validação rigorosa de data
-        if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2020 && year <= 2030) {
-          // Validação adicional para dias por mês
-          const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-          if (year % 4 === 0) daysInMonth[1] = 29; // Ano bissexto
+        // Validação mais flexível de data
+        if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900 && year <= 2099) {
+          // Validação básica para dias por mês (mais permissiva)
+          const daysInMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // Usa 29 para fevereiro sempre
           
           if (day <= daysInMonth[month - 1]) {
             const dd = day.toString().padStart(2, '0');
             const mm = month.toString().padStart(2, '0');
             const iso = `${year}-${mm}-${dd}`;
-            const date = new Date(iso);
             
-            if (!isNaN(date.getTime())) {
-              const raw = `${dd}/${mm}/${year}`;
-              console.log('📅 Data extraída:', raw);
-              return { raw, iso };
+            // Tenta criar a data e verifica se é válida
+            try {
+              const date = new Date(year, month - 1, day);
+              if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+                const raw = `${dd}/${mm}/${year}`;
+                console.log('📅 Data extraída:', raw);
+                return { raw, iso };
+              }
+            } catch (error) {
+              console.log('⚠️ Erro ao criar data:', error);
             }
           }
         }
+        
+        console.log('⚠️ Data não passou na validação:', { day, month, year });
       }
+    }
+  }
+  
+  // Fallback: tenta extrair qualquer sequência que pareça uma data
+  console.log('🔍 Tentando fallback para extração de data...');
+  const fallbackPattern = /(\d{1,2})[^\d]+(\d{1,2})[^\d]+(\d{2,4})/;
+  const fallbackMatch = correctedText.match(fallbackPattern);
+  
+  if (fallbackMatch) {
+    const day = parseInt(fallbackMatch[1], 10);
+    const month = parseInt(fallbackMatch[2], 10);
+    let year = parseInt(fallbackMatch[3], 10);
+    
+    // Converte ano de 2 dígitos
+    if (year < 100) {
+      year = year < 50 ? 2000 + year : 1900 + year;
+    }
+    
+    // Validação mínima
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      const dd = day.toString().padStart(2, '0');
+      const mm = month.toString().padStart(2, '0');
+      const raw = `${dd}/${mm}/${year}`;
+      const iso = `${year}-${mm}-${dd}`;
+      
+      console.log('📅 Data extraída via fallback:', raw);
+      return { raw, iso };
     }
   }
   
