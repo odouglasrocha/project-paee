@@ -294,10 +294,16 @@ const ControleQualidade = () => {
        console.log('🔍 Iniciando validação automática da data de validade');
        const validadeDetectada = "02/02/2026";
        
-       // Extrai e analisa dados do texto OCR real
+       // Extrai e analisa dados do texto OCR real com nova lógica otimizada
        const expiryData = parseExpiryData(ocrText);
        console.log('📊 Dados extraídos da imagem real:', expiryData);
        console.log('🔍 DEBUG - Data extraída para validação:', expiryData.fullDate);
+       console.log('🔍 DEBUG - Código de lote extraído:', expiryData.loteCode);
+       console.log('🔍 DEBUG - Horário extraído:', expiryData.timeCode);
+       
+       // Formata dados no padrão solicitado
+       const formattedData = formatExtractedData(expiryData);
+       console.log('📋 Dados formatados (DD/MM/AAAA LS000 00:00):', formattedData);
        
        // Valida a data extraída
        const validation = validateExpiryDate(expiryData.fullDate);
@@ -324,12 +330,14 @@ const ControleQualidade = () => {
       
       console.log('✅ DEBUG - Validação passou, continuando com upload');
       
-      // Prepara dados OCR com validação
+      // Prepara dados OCR com validação e formato padronizado
       const validatedOcrData = {
         detectedText: ocrText,
         originalDate: expiryData.date,
         expiryDate: expiryData.fullDate,
         lsCode: expiryData.loteCode,
+        timeCode: expiryData.timeCode,
+        formattedData: formattedData, // DD/MM/AAAA LS000 00:00
         validationStatus: validation.status,
         validationMessage: validation.message,
         isValidDate: validation.isValid,
@@ -581,54 +589,154 @@ const ControleQualidade = () => {
     return "";
   };
 
-  // Função para extrair data e código de lote do texto OCR
-  const parseExpiryData = (text: string): { date: string, fullDate: string, loteCode: string, isValid: boolean } => {
-    const t = (text || "").replace(/\s+/g, " ").trim();
-    console.log('🔍 Analisando texto OCR:', t);
+  // Função para correção de caracteres comuns confundidos pelo OCR
+  const correctOCRErrors = (text: string): string => {
+    let corrected = text;
     
-    // Padrões para detectar datas
+    // Correções comuns de OCR
+    corrected = corrected.replace(/[O0oQ]/g, '0'); // O, o, Q → 0
+    corrected = corrected.replace(/[Il1|]/g, '1'); // I, l, | → 1
+    corrected = corrected.replace(/[S5$]/g, '5'); // S, $ → 5 (mas preserva LS)
+    corrected = corrected.replace(/[Z2]/g, '2'); // Z → 2
+    corrected = corrected.replace(/[B8]/g, '8'); // B → 8
+    corrected = corrected.replace(/[G6]/g, '6'); // G → 6
+    corrected = corrected.replace(/[T7]/g, '7'); // T → 7
+    corrected = corrected.replace(/[A4]/g, '4'); // A → 4
+    corrected = corrected.replace(/[E3]/g, '3'); // E → 3
+    corrected = corrected.replace(/[g9]/g, '9'); // g → 9
+    
+    // Corrige LS específicamente (pode ter sido alterado acima)
+    corrected = corrected.replace(/L[5S]/g, 'LS');
+    corrected = corrected.replace(/[1I]S/g, 'LS');
+    
+    return corrected;
+  };
+  
+  // Função para extrair horário no formato HH:MM
+  const extractTime = (text: string): string => {
+    const correctedText = correctOCRErrors(text);
+    console.log('🕐 Buscando horário em:', correctedText);
+    
+    // Padrões para detectar horário
+    const timePatterns = [
+      // HH:MM formato padrão
+      /\b([0-2]?[0-9]):([0-5][0-9])\b/g,
+      // HH MM com espaço
+      /\b([0-2]?[0-9])\s+([0-5][0-9])\b/g,
+      // HHMM sem separador
+      /\b([0-2][0-9])([0-5][0-9])\b/g
+    ];
+    
+    for (const pattern of timePatterns) {
+      const matches = Array.from(correctedText.matchAll(pattern));
+      for (const match of matches) {
+        const hour = parseInt(match[1], 10);
+        const minute = parseInt(match[2], 10);
+        
+        // Valida horário (00-23:00-59)
+        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+          const formattedTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+          console.log('🕐 Horário extraído:', formattedTime);
+          return formattedTime;
+        }
+      }
+    }
+    
+    console.log('❌ Nenhum horário válido encontrado');
+    return '';
+  };
+  
+  // Função otimizada para extrair data e código de lote do texto OCR
+  const parseExpiryData = (text: string): { date: string, fullDate: string, loteCode: string, timeCode: string, isValid: boolean } => {
+    const originalText = (text || "").trim();
+    const correctedText = correctOCRErrors(originalText);
+    console.log('🔍 Texto original:', originalText);
+    console.log('🔧 Texto corrigido:', correctedText);
+    
+    // Padrões robustos para detectar datas DD/MM/AAAA
     const datePatterns = [
-      // dd/mm/yy ou dd/mm/yyyy
-      /(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/g,
+      // dd/mm/yyyy formato padrão
+      /\b([0-3]?[0-9])[\/.\-]([0-1]?[0-9])[\/.\-]([2][0-9]{3})\b/g,
+      // dd/mm/yy formato curto
+      /\b([0-3]?[0-9])[\/.\-]([0-1]?[0-9])[\/.\-]([2-9][0-9])\b/g,
       // Padrões com espaços
-      /(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*(\d{2,4})/g
+      /\b([0-3]?[0-9])\s*[\/.\-]\s*([0-1]?[0-9])\s*[\/.\-]\s*([2][0-9]{3})\b/g,
+      // Formato brasileiro com espaços
+      /\b([0-3][0-9])\s*\/\s*([0-1][0-9])\s*\/\s*([2][0-9]{3})\b/g
     ];
     
     let extractedDate = "";
     let fullDate = "";
     
-    // Busca por data
+    // Busca por data com validação rigorosa
     for (const pattern of datePatterns) {
-      const matches = Array.from(t.matchAll(pattern));
+      const matches = Array.from(correctedText.matchAll(pattern));
       for (const match of matches) {
         if (match[1] && match[2] && match[3]) {
           const day = parseInt(match[1], 10);
           const month = parseInt(match[2], 10);
           let year = parseInt(match[3], 10);
           
-          // Valida se é uma data válida
-          if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-            extractedDate = match[0];
-            fullDate = convertDateToFullFormat(extractedDate);
-            break;
+          // Converte ano de 2 dígitos para 4 dígitos
+          if (year < 100) {
+            year = year < 50 ? 2000 + year : 1900 + year;
+          }
+          
+          // Validação rigorosa de data
+          if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2020 && year <= 2030) {
+            // Validação adicional para dias por mês
+            const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+            if (year % 4 === 0) daysInMonth[1] = 29; // Ano bissexto
+            
+            if (day <= daysInMonth[month - 1]) {
+              extractedDate = match[0];
+              fullDate = `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+              break;
+            }
           }
         }
       }
       if (extractedDate) break;
     }
     
-    // Extrai código de lote (LS seguido de números)
-    const loteMatch = t.match(/LS\s*(\d{3})/i);
-    const loteCode = loteMatch ? `LS${loteMatch[1]}` : "";
+    // Extrai código de lote LS com padrões robustos
+    const lotePatterns = [
+      // LS seguido de 3-6 dígitos
+      /\bLS\s*([0-9]{3,6})\b/gi,
+      // L5 (confundido com LS)
+      /\bL5\s*([0-9]{3,6})\b/gi,
+      // Padrões com espaços e caracteres especiais
+      /\bL[S5]\s*[\-_\s]*([0-9]{3,6})\b/gi,
+      // Formato mais flexível
+      /\b[L1I][S5]\s*([0-9]{3,6})\b/gi
+    ];
+    
+    let loteCode = "";
+    for (const pattern of lotePatterns) {
+      const match = correctedText.match(pattern);
+      if (match) {
+        // Extrai apenas os números
+        const numbers = match[0].replace(/[^0-9]/g, '');
+        if (numbers.length >= 3) {
+          loteCode = `LS${numbers.substring(0, 6)}`; // Máximo 6 dígitos
+          break;
+        }
+      }
+    }
+    
+    // Extrai horário
+    const timeCode = extractTime(correctedText);
     
     console.log('📅 Data extraída:', extractedDate, '→', fullDate);
     console.log('🏷️ Código de lote:', loteCode);
+    console.log('🕐 Horário extraído:', timeCode);
     
     return {
       date: extractedDate,
       fullDate,
       loteCode,
-      isValid: !!fullDate
+      timeCode,
+      isValid: !!fullDate && !!loteCode
     };
   };
 
@@ -717,68 +825,66 @@ const ControleQualidade = () => {
     return result.fullDate;
   };
   
-  // Função para extrair código LS do texto OCR
+  // Função para extrair código LS do texto OCR (usando nova lógica otimizada)
   const extractLSCode = (text: string): string => {
-    const upper = (text || "").toUpperCase();
-    console.log('🏷️ Texto para extração de código LS:', upper);
+    const result = parseExpiryData(text);
+    return result.loteCode;
+  };
+  
+  // Função para formatar dados extraídos no padrão solicitado: DD/MM/AAAA LS000 00:00
+  const formatExtractedData = (expiryData: { fullDate: string, loteCode: string, timeCode: string }): string => {
+    const parts = [];
     
-    // Padrões para detectar códigos LS
-    const patterns = [
-      // LS seguido de 3 dígitos
-      /LS\s*(\d{3})/g,
-      // L5 (pode ser confundido com LS)
-      /L5\s*(\d{3})/g,
-      // Padrão mais flexível
-      /L[S5]\s*[\s\-_]*(\d{3})/g,
-      // Para imagem de teste que pode ter "LS223" ou similar
-      /\b(LS\d{3})\b/g,
-      // Qualquer L seguido de S ou 5 e números
-      /\bL[S5]\s*\d{3}\b/g
-    ];
-    
-    for (const pattern of patterns) {
-      const matches = Array.from(upper.matchAll(pattern));
-      console.log('🔍 Padrão LS testado:', pattern.source, 'Matches:', matches.length);
-      
-      for (const match of matches) {
-        let code = match[0];
-        
-        // Normaliza o código
-        if (match[1]) {
-          code = `LS${match[1]}`;
-        } else {
-          code = code.replace(/\s+/g, '').replace(/L5/g, 'LS');
-        }
-        
-        console.log('🏷️ Código LS extraído:', code);
-        
-        // Valida se tem formato correto
-        if (/^LS\d{3}$/.test(code)) {
-          console.log('✅ Código LS válido:', code);
-          return code;
-        }
-      }
+    if (expiryData.fullDate) {
+      parts.push(expiryData.fullDate);
     }
     
-    console.log('❌ Nenhum código LS válido encontrado no texto:', upper);
-    return "";
+    if (expiryData.loteCode) {
+      parts.push(expiryData.loteCode);
+    }
+    
+    if (expiryData.timeCode) {
+      parts.push(expiryData.timeCode);
+    }
+    
+    const formatted = parts.join(' ');
+    console.log('📋 Dados formatados:', formatted);
+    return formatted;
+  };
+  
+  // Função para extrair dados completos no formato padrão
+  const extractCompleteData = (text: string): string => {
+    const expiryData = parseExpiryData(text);
+    return formatExtractedData(expiryData);
   };
   
   // Simula recebimento de dados do OCR da validação PAEE
   const handleOcrDataReceived = (ocrData: any) => {
     console.log('ControleQualidade recebeu dados:', ocrData);
     
-    const extractedDate = extractExpiryDate(ocrData.ocrText || '');
-    const extractedCode = extractLSCode(ocrData.ocrText || '');
+    // Usa a nova função de extração completa otimizada
+    const completeData = extractCompleteData(ocrData.ocrText || '');
+    console.log('📋 Dados completos extraídos:', completeData);
     
-    // Combina data e código no formato solicitado
-    let combinedData = "";
-    if (extractedDate && extractedCode) {
-      combinedData = `${extractedDate} ${extractedCode}`;
-    } else if (extractedDate) {
-      combinedData = extractedDate;
-    } else if (extractedCode) {
-      combinedData = extractedCode;
+    // Extrai componentes individuais para compatibilidade
+    const expiryData = parseExpiryData(ocrData.ocrText || '');
+    const extractedDate = expiryData.fullDate;
+    const extractedCode = expiryData.loteCode;
+    const extractedTime = expiryData.timeCode;
+    
+    // Usa dados completos formatados como prioridade
+    let combinedData = completeData;
+    if (!combinedData) {
+      // Fallback para compatibilidade
+      if (extractedDate && extractedCode && extractedTime) {
+        combinedData = `${extractedDate} ${extractedCode} ${extractedTime}`;
+      } else if (extractedDate && extractedCode) {
+        combinedData = `${extractedDate} ${extractedCode}`;
+      } else if (extractedDate) {
+        combinedData = extractedDate;
+      } else if (extractedCode) {
+        combinedData = extractedCode;
+      }
     }
     
     if (combinedData) {
