@@ -1166,17 +1166,13 @@ const ControleQualidade = () => {
                              {shouldShowExpiryDate ? (
                                <div className="flex flex-col items-center justify-center h-full px-1">
                                  <div className={`${dateTextSize} font-bold text-[#004B87] leading-tight transform -rotate-90 whitespace-nowrap`}>
-                                   {/* Usa formattedData se disponível, senão usa expiryDate + lsCode separadamente */}
-                                   {imageAtThisPosition.ocrData.formattedData ? (
-                                     imageAtThisPosition.ocrData.formattedData
-                                   ) : (
-                                     <>
-                                       {imageAtThisPosition.ocrData.expiryDate}
-                                       {imageAtThisPosition.ocrData.lsCode && (
-                                         <span className="block mt-1 text-[8px]">{imageAtThisPosition.ocrData.lsCode}</span>
-                                       )}
-                                     </>
-                                   )}
+                                   {/* Exibe data normal e código de lote em linhas separadas na vertical */}
+                                   <div className="flex flex-col items-center">
+                                     <span className="text-[10px] leading-tight">{imageAtThisPosition.ocrData.expiryDate}</span>
+                                     {imageAtThisPosition.ocrData.lsCode && (
+                                       <span className="text-[8px] leading-tight mt-0.5">{imageAtThisPosition.ocrData.lsCode}</span>
+                                     )}
+                                   </div>
                                  </div>
                                </div>
                              ) : isGramagemRow ? (
